@@ -1,5 +1,8 @@
 package com.aharwood.metrics.spring.jdbc
 
+import com.yammer.metrics.core.Metric
+import com.yammer.metrics.core.MetricName
+import com.yammer.metrics.core.Timer
 import com.yammer.metrics.core.MetricsRegistry
 import org.apache.derby.jdbc.EmbeddedDriver
 import org.junit.Before
@@ -12,7 +15,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder
 
 import java.sql.*
 
-import static junit.framework.TestCase.assertEquals
+import static junit.framework.TestCase.*
 
 class InstrumentedJdbcTemplateTest {
 
@@ -490,6 +493,10 @@ class InstrumentedJdbcTemplateTest {
 
     private void verify() {
         assertEquals(1, jdbcTemplate.metricsRegistry.allMetrics().size())
+
+        jdbcTemplate.metricsRegistry.allMetrics().each { MetricName metricName, Timer metric ->
+            assertTrue(metric.count() > 0)
+        }
     }
 
     private void verify(String sql) {
