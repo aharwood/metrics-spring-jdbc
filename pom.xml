@@ -21,6 +21,8 @@
     </licenses>
 
     <scm>
+        <connection>scm:git:https://github.com/aharwood/metrics-spring-jdbc.git</connection>
+        <developerConnection>scm:git:https://github.com/aharwood/metrics-spring-jdbc.git</developerConnection>
         <url>https://github.com/aharwood/metrics-spring-jdbc.git</url>
     </scm>
 
