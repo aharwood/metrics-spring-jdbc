@@ -3,6 +3,7 @@ package com.aharwood.metrics.spring.jdbc;
 import com.yammer.metrics.core.MetricName;
 import com.yammer.metrics.core.MetricsRegistry;
 import com.yammer.metrics.core.Timer;
+import com.yammer.metrics.core.TimerContext;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.springframework.dao.DataAccessException;
@@ -43,7 +44,7 @@ public class InstrumentedJdbcTemplate extends JdbcTemplate {
 
     @Override
     public <T> T execute(StatementCallback<T> action) throws DataAccessException {
-        Timer timer = null;
+        TimerContext timer = null;
         if (action instanceof SqlProvider) {
             SqlProvider sqlProvider = (SqlProvider) action;
             if (sqlProvider.getSql() == null) {
@@ -65,7 +66,7 @@ public class InstrumentedJdbcTemplate extends JdbcTemplate {
 
     @Override
 	public <T> T execute(PreparedStatementCreator psc, PreparedStatementCallback<T> action) throws DataAccessException {
-        Timer timer = null;
+        TimerContext timer = null;
         if (psc instanceof SqlProvider) {
             timer = startTimer((SqlProvider) psc, "execute.PreparedStatementCreator.PreparedStatementCallback");
         }
@@ -81,7 +82,7 @@ public class InstrumentedJdbcTemplate extends JdbcTemplate {
 
     @Override
     public <T> T execute(CallableStatementCreator csc, CallableStatementCallback<T> action) throws DataAccessException {
-        Timer timer = null;
+        TimerContext timer = null;
         if (csc instanceof SqlProvider) {
             timer = startTimer((SqlProvider) csc, "callable.CallableStatementCreator.CallableStatementCallback");
         } else {
@@ -97,7 +98,7 @@ public class InstrumentedJdbcTemplate extends JdbcTemplate {
 
     @Override
     public <T> T execute(ConnectionCallback<T> action) throws DataAccessException {
-        Timer timer = startTimer(new MetricName(GROUP_NAME, "connectionCallback", "ConnectionCallback"));
+        TimerContext timer = startTimer(new MetricName(GROUP_NAME, "connectionCallback", "ConnectionCallback"));
 
         try {
             return super.execute(action);
@@ -106,13 +107,12 @@ public class InstrumentedJdbcTemplate extends JdbcTemplate {
         }
     }
 
-    protected Timer startTimer(SqlProvider sqlProvider, String type) {
+    protected TimerContext startTimer(SqlProvider sqlProvider, String type) {
         return startTimer(new MetricName(GROUP_NAME, type, sqlProvider.getSql()));
     }
 
-    protected Timer startTimer(MetricName metricName) {
+    protected TimerContext startTimer(MetricName metricName) {
         Timer timer = this.metricsRegistry.newTimer(metricName, TimeUnit.MILLISECONDS, TimeUnit.SECONDS);
-        timer.time();
-        return timer;
+        return timer.time();
     }
 }
