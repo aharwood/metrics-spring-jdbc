@@ -37,6 +37,12 @@ class InstrumentedJdbcTemplateTest {
     }
 
     @Test
+    void call() {
+        jdbcTemplate.call(new MockCallableStatementCreator(), [])
+        verify()
+    }
+
+    @Test
     void executeCallableStatementCreatorCallableStatementCallback() {
         jdbcTemplate.execute(new MockCallableStatementCreator(), new MockCallableStatementCallback())
         verify()
@@ -468,7 +474,11 @@ class InstrumentedJdbcTemplateTest {
 
     private static class MockCallableStatementCreator implements CallableStatementCreator {
         CallableStatement createCallableStatement(Connection con) throws SQLException {
-            return [:] as CallableStatement
+            return [
+                execute: { -> false },
+                getUpdateCount: { -> -1 },
+                getMoreResults: { -> false }
+            ] as CallableStatement
         }
     }
 
