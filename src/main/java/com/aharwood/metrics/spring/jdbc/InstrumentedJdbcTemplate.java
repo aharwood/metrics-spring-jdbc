@@ -6,6 +6,9 @@ import com.yammer.metrics.core.Timer;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.CallableStatementCallback;
+import org.springframework.jdbc.core.CallableStatementCreator;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.jdbc.core.PreparedStatementCreator;
@@ -38,40 +41,71 @@ public class InstrumentedJdbcTemplate extends JdbcTemplate {
         this.metricsRegistry = metricsRegistry;
     }
 
+    @Override
     public <T> T execute(StatementCallback<T> action) throws DataAccessException {
         Timer timer = null;
         if (action instanceof SqlProvider) {
             timer = startTimer((SqlProvider) action, "execute.StatementCallback");
         }
 
-        T result = super.execute(action);
-
-        if (timer != null) {
-            timer.stop();
+        try {
+            return super.execute(action);
+        } finally {
+            if (timer != null) {
+                timer.stop();
+            }
         }
-
-        return result;
     }
 
+    @Override
 	public <T> T execute(PreparedStatementCreator psc, PreparedStatementCallback<T> action) throws DataAccessException {
         Timer timer = null;
         if (psc instanceof SqlProvider) {
             timer = startTimer((SqlProvider) psc, "execute.PreparedStatementCreator.PreparedStatementCallback");
         }
 
-        T result = super.execute(psc, action);
+        try {
+            return super.execute(psc, action);
+        } finally {
+            if (timer != null) {
+                timer.stop();
+            }
+        }
+    }
 
-        if (timer != null) {
-            timer.stop();
+    @Override
+    public <T> T execute(CallableStatementCreator csc, CallableStatementCallback<T> action) throws DataAccessException {
+        Timer timer = null;
+        if (csc instanceof SqlProvider) {
+            timer = startTimer((SqlProvider) csc, "callable.CallableStatementCreator.CallableStatementCallback");
+        } else {
+            timer = startTimer(new MetricName(GROUP_NAME, "callable", "CallableStatementCreator.CallableStatementCallback"));
         }
 
-        return result;
+        try {
+            return super.execute(csc, action);
+        } finally {
+            timer.stop();
+        }
+    }
+
+    @Override
+    public <T> T execute(ConnectionCallback<T> action) throws DataAccessException {
+        Timer timer = startTimer(new MetricName(GROUP_NAME, "connectionCallback", "ConnectionCallback"));
+
+        try {
+            return super.execute(action);
+        } finally {
+            timer.stop();
+        }
     }
 
     protected Timer startTimer(SqlProvider sqlProvider, String type) {
-        Timer timer = this.metricsRegistry.newTimer(new MetricName(GROUP_NAME, type, sqlProvider.getSql()),
-                                                    TimeUnit.MILLISECONDS,
-                                                    TimeUnit.SECONDS);
+        return startTimer(new MetricName(GROUP_NAME, type, sqlProvider.getSql()));
+    }
+
+    protected Timer startTimer(MetricName metricName) {
+        Timer timer = this.metricsRegistry.newTimer(metricName, TimeUnit.MILLISECONDS, TimeUnit.SECONDS);
         timer.time();
         return timer;
     }

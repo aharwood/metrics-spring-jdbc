@@ -5,18 +5,25 @@ import org.apache.derby.jdbc.EmbeddedDriver
 import org.junit.Before
 import org.junit.Test
 import org.springframework.dao.DataAccessException
+import org.springframework.jdbc.core.CallableStatementCallback
+import org.springframework.jdbc.core.CallableStatementCreator
+import org.springframework.jdbc.core.ConnectionCallback
+import org.springframework.jdbc.core.PreparedStatementCallback
 import org.springframework.jdbc.core.PreparedStatementCreator
 import org.springframework.jdbc.core.PreparedStatementSetter
 import org.springframework.jdbc.core.ResultSetExtractor
 import org.springframework.jdbc.core.RowCallbackHandler
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.SqlProvider
+import org.springframework.jdbc.core.StatementCallback
 import org.springframework.jdbc.datasource.SimpleDriverDataSource
 
+import java.sql.CallableStatement
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.SQLException
+import java.sql.Statement
 
 import static junit.framework.TestCase.assertEquals
 
@@ -27,6 +34,53 @@ class InstrumentedJdbcTemplateTest {
     @Before
     void setup() {
         this.jdbcTemplate = newJdbcTemplate()
+    }
+
+    @Test
+    void executeCallableStatementCreatorCallableStatementCallback() {
+        jdbcTemplate.execute(new MockCallableStatementCreator(), new MockCallableStatementCallback())
+        verify()
+    }
+
+    @Test
+    void executeConnectionCallback() {
+        jdbcTemplate.execute(new MockConnectionCallback())
+        verify()
+    }
+
+    @Test
+    void executePreparedStatementCreatorPreparedStatementCallback() {
+        String sql = "select * from SYS.SYSTABLES"
+        jdbcTemplate.execute(new MockPreparedStatementCreator(sql), new MockPreparedStatementCallback())
+        verify(sql)
+    }
+
+    @Test
+    void executeStatementCallback() {
+        String sql = "select * from SYS.SYSTABLES"
+        jdbcTemplate.execute(new MockStatementCallback(sql))
+        verify(sql)
+    }
+
+    @Test
+    void executeString() {
+        String sql = "select * from SYS.SYSTABLES"
+        jdbcTemplate.execute(sql)
+        verify(sql)
+    }
+
+    @Test
+    void executeStringCallableStatementCallback() {
+        String sql = "select * from SYS.SYSTABLES"
+        jdbcTemplate.execute(sql, new MockCallableStatementCallback())
+        verify(sql)
+    }
+
+    @Test
+    void executeStringPreparedStatementCallback() {
+        String sql = "select * from SYS.SYSTABLES"
+        jdbcTemplate.execute(sql, new MockPreparedStatementCallback())
+        verify(sql)
     }
 
     @Test
@@ -359,8 +413,12 @@ class InstrumentedJdbcTemplateTest {
         jdbcTemplate
     }
 
-    private void verify(String sql) {
+    private void verify() {
         assertEquals(1, jdbcTemplate.metricsRegistry.allMetrics().size())
+    }
+
+    private void verify(String sql) {
+        verify()
         assertEquals(sql, jdbcTemplate.metricsRegistry.allMetrics().keySet().iterator().next().name)
     }
 
@@ -388,6 +446,7 @@ class InstrumentedJdbcTemplateTest {
 
     private static class MockPreparedStatementCreator implements PreparedStatementCreator, SqlProvider {
         private String sql
+
         private MockPreparedStatementCreator(String sql) {
             this.sql = sql;
         }
@@ -404,6 +463,46 @@ class InstrumentedJdbcTemplateTest {
 
         String getSql() {
             this.sql
+        }
+    }
+
+    private static class MockCallableStatementCreator implements CallableStatementCreator {
+        CallableStatement createCallableStatement(Connection con) throws SQLException {
+            return [:] as CallableStatement
+        }
+    }
+
+    private static class MockCallableStatementCallback implements CallableStatementCallback {
+        Object doInCallableStatement(CallableStatement cs) throws SQLException, DataAccessException {
+            null
+        }
+    }
+
+    private static class MockConnectionCallback implements ConnectionCallback {
+        Object doInConnection(Connection con) throws SQLException, DataAccessException {
+            null
+        }
+    }
+
+    private static class MockPreparedStatementCallback implements PreparedStatementCallback {
+        Object doInPreparedStatement(PreparedStatement ps) throws SQLException, DataAccessException {
+            null
+        }
+    }
+
+    private static class MockStatementCallback implements StatementCallback, SqlProvider {
+        private String sql
+
+        private MockStatementCallback(String sql) {
+            this.sql = sql;
+        }
+
+        Object doInStatement(Statement stmt) throws SQLException, DataAccessException {
+            null
+        }
+
+        String getSql() {
+            return sql
         }
     }
 }
