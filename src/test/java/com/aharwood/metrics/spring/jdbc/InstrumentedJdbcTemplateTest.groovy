@@ -2,12 +2,18 @@ package com.aharwood.metrics.spring.jdbc
 
 import com.yammer.metrics.core.MetricsRegistry
 import org.apache.derby.jdbc.EmbeddedDriver
+import org.junit.After
+import org.junit.AfterClass
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Test
 import org.springframework.dao.DataAccessException
+import org.springframework.jdbc.core.BatchPreparedStatementSetter
 import org.springframework.jdbc.core.CallableStatementCallback
 import org.springframework.jdbc.core.CallableStatementCreator
 import org.springframework.jdbc.core.ConnectionCallback
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.ParameterizedPreparedStatementSetter
 import org.springframework.jdbc.core.PreparedStatementCallback
 import org.springframework.jdbc.core.PreparedStatementCreator
 import org.springframework.jdbc.core.PreparedStatementSetter
@@ -26,14 +32,63 @@ import java.sql.SQLException
 import java.sql.Statement
 
 import static junit.framework.TestCase.assertEquals
+import static junit.framework.TestCase.assertTrue
 
 class InstrumentedJdbcTemplateTest {
 
-    private InstrumentedJdbcTemplate jdbcTemplate
+    private static InstrumentedJdbcTemplate jdbcTemplate
+
+    @BeforeClass
+    static void setupJdbcTemplate() {
+        def dataSource = new SimpleDriverDataSource(new EmbeddedDriver(), "jdbc:derby:memory:TestDB;create=true")
+        jdbcTemplate = new InstrumentedJdbcTemplate(dataSource)
+        jdbcTemplate.setMetricsRegistry(new MetricsRegistry())
+
+        //create a test table
+        jdbcTemplate.execute("CREATE TABLE Test (ID INT NOT NULL, NAME VARCHAR(32) NOT NULL)")
+    }
 
     @Before
     void setup() {
-        this.jdbcTemplate = newJdbcTemplate()
+        //reset the state of metrics
+        jdbcTemplate.metricsRegistry.allMetrics().keySet().each {
+            metricName -> jdbcTemplate.metricsRegistry.removeMetric(metricName)
+        }
+    }
+
+    @Test
+    void batchUpdate() {
+        def sql = ["INSERT INTO Test VALUES (1, 'batchUpdate0')", "INSERT INTO Test VALUES (2, 'batchUpdate1')"] as String[]
+        jdbcTemplate.batchUpdate(sql)
+        verify()
+    }
+
+    @Test
+    void batchUpdateBatchPreparedStatementSetter() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.batchUpdate(sql, new MockBatchPreparedStatementSetter())
+        verify()
+    }
+
+    @Test
+    void batchUpdateCollectionIntParameterizedPreparedStatementSetter() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.batchUpdate(sql, [], 1, new MockParameterizedPreparedStatementSetter())
+        verify()
+    }
+
+    @Test
+    void batchUpdateList() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.batchUpdate(sql, [])
+        verify()
+    }
+
+    @Test
+    void batchUpdateListIntArray() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.batchUpdate(sql, [], new int [0])
+        verify()
     }
 
     @Test
@@ -411,16 +466,15 @@ class InstrumentedJdbcTemplateTest {
         verify(sql)
     }
 
-    private InstrumentedJdbcTemplate newJdbcTemplate() {
-        def dataSource = new SimpleDriverDataSource(new EmbeddedDriver(), "jdbc:derby:memory:TestDB;create=true")
-        def jdbcTemplate = new InstrumentedJdbcTemplate(dataSource)
-        def metricsRegistry = new MetricsRegistry()
-        jdbcTemplate.setMetricsRegistry(metricsRegistry)
-        jdbcTemplate
-    }
-
     private void verify() {
         assertEquals(1, jdbcTemplate.metricsRegistry.allMetrics().size())
+    }
+
+    private void verify(String... sql) {
+        assertEquals(sql.size(), jdbcTemplate.metricsRegistry.allMetrics().size())
+        sql.each { ->
+            assertTrue(jdbcTemplate.metricsRegistry.allMetrics().keySet().contains(it))
+        }
     }
 
     private void verify(String sql) {
@@ -513,6 +567,19 @@ class InstrumentedJdbcTemplateTest {
 
         String getSql() {
             return sql
+        }
+    }
+
+    private static class MockBatchPreparedStatementSetter implements BatchPreparedStatementSetter {
+        int getBatchSize() {
+            1
+        }
+        void setValues(PreparedStatement ps, int i) throws SQLException {
+        }
+    }
+
+    private static class MockParameterizedPreparedStatementSetter implements ParameterizedPreparedStatementSetter {
+        void setValues(PreparedStatement ps, Object argument) throws SQLException {
         }
     }
 }

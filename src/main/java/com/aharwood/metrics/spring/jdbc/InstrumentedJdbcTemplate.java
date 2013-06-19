@@ -45,7 +45,13 @@ public class InstrumentedJdbcTemplate extends JdbcTemplate {
     public <T> T execute(StatementCallback<T> action) throws DataAccessException {
         Timer timer = null;
         if (action instanceof SqlProvider) {
-            timer = startTimer((SqlProvider) action, "execute.StatementCallback");
+            SqlProvider sqlProvider = (SqlProvider) action;
+            if (sqlProvider.getSql() == null) {
+                //probably a batch update.
+                timer = startTimer(new MetricName(GROUP_NAME, "execute", "StatementCallback", "batchUpdate"));
+            } else {
+                timer = startTimer(sqlProvider, "execute.StatementCallback");
+            }
         }
 
         try {
