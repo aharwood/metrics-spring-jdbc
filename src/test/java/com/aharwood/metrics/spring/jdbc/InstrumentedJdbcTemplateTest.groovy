@@ -2,37 +2,17 @@ package com.aharwood.metrics.spring.jdbc
 
 import com.yammer.metrics.core.MetricsRegistry
 import org.apache.derby.jdbc.EmbeddedDriver
-import org.junit.After
-import org.junit.AfterClass
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 import org.springframework.dao.DataAccessException
-import org.springframework.jdbc.core.BatchPreparedStatementSetter
-import org.springframework.jdbc.core.CallableStatementCallback
-import org.springframework.jdbc.core.CallableStatementCreator
-import org.springframework.jdbc.core.ConnectionCallback
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.core.ParameterizedPreparedStatementSetter
-import org.springframework.jdbc.core.PreparedStatementCallback
-import org.springframework.jdbc.core.PreparedStatementCreator
-import org.springframework.jdbc.core.PreparedStatementSetter
-import org.springframework.jdbc.core.ResultSetExtractor
-import org.springframework.jdbc.core.RowCallbackHandler
-import org.springframework.jdbc.core.RowMapper
-import org.springframework.jdbc.core.SqlProvider
-import org.springframework.jdbc.core.StatementCallback
+import org.springframework.jdbc.core.*
 import org.springframework.jdbc.datasource.SimpleDriverDataSource
+import org.springframework.jdbc.support.GeneratedKeyHolder
 
-import java.sql.CallableStatement
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.SQLException
-import java.sql.Statement
+import java.sql.*
 
 import static junit.framework.TestCase.assertEquals
-import static junit.framework.TestCase.assertTrue
 
 class InstrumentedJdbcTemplateTest {
 
@@ -466,15 +446,50 @@ class InstrumentedJdbcTemplateTest {
         verify(sql)
     }
 
-    private void verify() {
-        assertEquals(1, jdbcTemplate.metricsRegistry.allMetrics().size())
+    @Test
+    void updatePreparedStatementCreator() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.update(new MockPreparedStatementCreator(sql))
+        verify(sql)
     }
 
-    private void verify(String... sql) {
-        assertEquals(sql.size(), jdbcTemplate.metricsRegistry.allMetrics().size())
-        sql.each { ->
-            assertTrue(jdbcTemplate.metricsRegistry.allMetrics().keySet().contains(it))
-        }
+    @Test
+    void updatePreparedStatementCreatorKeyHolder() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.update(new MockPreparedStatementCreator(sql), new GeneratedKeyHolder())
+        verify(sql)
+    }
+
+    @Test
+    void updateString() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.update(sql)
+        verify(sql)
+    }
+
+    @Test
+    void updateStringVarArgs() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.update(sql, new Object[0])
+        verify(sql)
+    }
+
+    @Test
+    void updateStringObjectArrayIntArray() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.update(sql, new Object[0], new int[0])
+        verify(sql)
+    }
+
+    @Test
+    void updateStringPreparedStatementSetter() {
+        def sql = "INSERT INTO Test VALUES (1, 'batchUpdate0')"
+        jdbcTemplate.update(sql, new MockPreparedStatementSetter())
+        verify(sql)
+    }
+
+    private void verify() {
+        assertEquals(1, jdbcTemplate.metricsRegistry.allMetrics().size())
     }
 
     private void verify(String sql) {
@@ -517,6 +532,12 @@ class InstrumentedJdbcTemplateTest {
                     [
                         next: { -> false }
                     ] as ResultSet
+                },
+                executeUpdate: {
+                    1
+                },
+                getGeneratedKeys: {
+                    null
                 }
             ] as PreparedStatement
         }
